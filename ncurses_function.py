@@ -214,9 +214,9 @@ class SelectionPanel(customWindows):
         self.set_dimension(*self.dim)
 
     def get_element(self, x, y):
-        if x + y * self.element_by_line < len(self.content):
+        if self.content and x + y * self.element_by_line < len(self.content):
             return self.content[x + y * self.element_by_line]
-        return "vide"
+        return "Empty."
 
     def mousse_selected(self):
         self.check_cursor()
@@ -261,9 +261,7 @@ class SelectionPanel(customWindows):
                 )
 
         if len(self.content) - 1 < self.height - 1:
-            self.win.addstr(len(self.content) + 1, 1, "End.")
-
-        self.win.addstr(3, 1, f"{self.number_of_line} {self.element_by_line}")
+            self.win.addstr(self.number_of_line + 1, 1, "End.")
 
         self.win.box()
         if self.progresse_bar:
