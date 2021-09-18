@@ -1,10 +1,12 @@
 # coding=utf-8
 import unicodedata
+from math import ceil
 
 try:
     import curses
 except ImportError:
     sys.exit("""You need curses, it's a default module on Linux, it's time to join the great side of the open-source project ! If needed: https://pypi.org/project/windows-curses/""")
+
 
 def get_color(cursor=False, focus=False, selected=False):
     idd = 1 * int(cursor) + 2 * int(focus) + 4 * int(selected)
@@ -21,12 +23,13 @@ def isPrintable(k):
         ord("\n"),
         curses.KEY_BACKSPACE,
         ord('\x7f'),
+        curses.KEY_RESIZE
     ):
         return False
     return chr(k).isprintable()
 
 
-def trim(string, max_length=30):
+def trim(string, max_length=15):
     string = str(string)
     extra_length = 0
     for char in string:
@@ -76,8 +79,12 @@ class SearchBar(customWindows):
     """basic search bar with cursor
     when focus, keys pressed are add to SearchBar.letters accessible with SearchBar.content()"""
 
-    def __init__(self, h, w, y, x):
+    def set_dimension(self, h, w, y, x):
         super(SearchBar, self).__init__(h, w, y, x)
+
+    def __init__(self, h, w, y, x):
+        self.set_dimension(h, w, y, x)
+        self.dim = (h, w, y, x)
         self.letters = []
         self.message = "Looking for : "
 
@@ -126,11 +133,33 @@ class SearchBar(customWindows):
 
 
 class SelectionPanel(customWindows):
+    def set_dimension(self, h, w, x, y):
+        self.dim = (h, w, y, x)
+        self.height = h
+        self.width = w
+
+        self.max_element_size = 0
+        self.element_by_line = 0
+        self.number_of_line = 0
+
+        try:
+            self.max_element_size = max([
+                len(self.token_trim(token)) for token in self.content
+            ])
+            self.element_by_line = self.width // self.max_element_size
+            self.number_of_line = ceil(len(self.content) / self.element_by_line)
+        except ZeroDivisionError:
+            self.win.addstr(1, 1, "Too small.")
+        except ValueError:
+            self.win.addstr(1, 1, "No value.")
+
+    def token_trim(self, token, sep="   "):
+        return sep + trim(token, max_length=min(self.width - 2 * len(sep), 45)) + sep
+
     def __init__(self, h, w, y, x):
         super(SelectionPanel, self).__init__(h, w, y, x)
-        self.content = [[""]]
-        self.bar_lenght = 30
-        self.emojie_trim = lambda emojie: "   " + trim(emojie, max_length=self.bar_lenght) + "   "
+        self.content = [""]
+        self.set_dimension(h, w, y, x)
         self.selected_x = 0
         self.selected_y = 0
         self.scroll = 0
@@ -138,22 +167,22 @@ class SelectionPanel(customWindows):
 
     def check_cursor(self):
         self.cursor_y = max(self.cursor_y, 0)
-        self.cursor_y = min(self.cursor_y, len(self.content) - 1)
+        self.cursor_y = min(self.cursor_y, self.number_of_line - 1)
         self.cursor_x = max(self.cursor_x, 0)
-        self.cursor_x = min(self.cursor_x, len(self.content[self.cursor_y]) - 1)
+        self.cursor_x = min(self.cursor_x, self.element_by_line - 1)
 
         self.selected_y = max(self.selected_y, 0)
-        self.selected_y = min(self.selected_y, len(self.content) - 1)
+        self.selected_y = min(self.selected_y, self.number_of_line - 1)
         self.selected_x = max(self.selected_x, 0)
-        self.selected_x = min(self.selected_x, len(self.content[self.selected_y]) - 1)
+        self.selected_x = min(self.selected_x, self.element_by_line - 1)
 
     def move_possible(self, k):
         self.check_cursor()
-        if k == curses.KEY_DOWN and self.cursor_y < len(self.content) - 1:
+        if k == curses.KEY_DOWN and self.cursor_y < self.number_of_line - 1:
             return True
         if k == curses.KEY_UP and self.cursor_y > 0:
             return True
-        if k == curses.KEY_RIGHT and self.cursor_x < len(self.content[self.cursor_y]) - 1:
+        if k == curses.KEY_RIGHT and self.cursor_x < self.element_by_line - 1:
             return True
         if k == curses.KEY_LEFT and self.cursor_x > 0:
             return True
@@ -165,8 +194,9 @@ class SelectionPanel(customWindows):
 
         if self.cursor_y - self.scroll <= 3 and self.scroll:
             self.scroll -= 1
-        if self.cursor_y - self.scroll >= self.height - 3 and self.scroll < len(self.content) - self.height + 1:
+        if self.cursor_y - self.scroll >= self.height - 3 and self.scroll < self.number_of_line - self.height + 1:
             self.scroll += 1
+
         self.check_cursor()
 
     def add_keys(self, k):
@@ -178,49 +208,42 @@ class SelectionPanel(customWindows):
 
         self.move_cursor(k)
 
-    def get_line_size(self, y, xmax=-1):
-        taille = xmax if xmax != -1 else len(self.content[y])
-        return len(self.emojie_trim("")) * taille
-
-    def set_bar_lenght(self, lenght):
-        self.bar_lenght = lenght
-        self.emojie_trim = lambda emojie: "   " + trim(emojie, max_length=self.bar_lenght) + "   "
-
     def set_content(self, content):
-        self.content = [[]]
-        for item in content:
-            if (self.get_line_size(-1) + len(self.emojie_trim(item))) >= self.width - 2:
-                self.content.append([])  # Create new line
-            self.content[-1].append(item)
+        self.content = content
         self.check_cursor()
+        self.set_dimension(*self.dim)
+
+    def get_element(self, x, y):
+        if x + y * self.element_by_line < len(self.content):
+            return self.content[x + y * self.element_by_line]
+        return "vide"
 
     def mousse_selected(self):
         self.check_cursor()
-        try:
-            return self.content[self.cursor_y][self.cursor_x]
-        except:
-            return None
+        return self.get_element(self.cursor_x, self.cursor_y)
 
     def selected(self):
         self.check_cursor()
-        try:
-            return self.content[self.selected_y][self.selected_x]
-        except:
-            return None
+        return self.get_element(self.selected_x, self.selected_y)
 
     def reload(self):
         self.win.clear()
-        for y, line in enumerate(self.content[self.scroll:self.scroll + self.height - 2]):
-            for x, item in enumerate(line):
-                self.win.addstr(y + 1, self.get_line_size(y, xmax=x) + 1, self.emojie_trim(item))
+        for y in range(min(self.number_of_line, self.height - 2)):
+            for x in range(self.element_by_line):
+                self.win.addstr(
+                    y + 1,
+                    x * self.max_element_size + 1,
+                    self.token_trim(self.get_element(x, y + self.scroll)),
+                    curses.color_pair(get_color(focus=self.focus, cursor=False))
+                )
 
-        if self.content[0]:
+        if self.content:
             # Print cursor
             if 0 <= self.cursor_y - self.scroll < self.height:
                 self.win.addstr(
                     self.cursor_y - self.scroll + 1,
-                    self.get_line_size(self.cursor_y, xmax=self.cursor_x) + 1,
-                    self.emojie_trim(self.content[self.cursor_y][self.cursor_x]),
+                    self.cursor_x * self.max_element_size + 1,
+                    self.token_trim(self.get_element(self.cursor_x, self.cursor_y)),
                     curses.color_pair(get_color(focus=self.focus, cursor=True))
                 )
 
@@ -228,8 +251,8 @@ class SelectionPanel(customWindows):
             if 0 <= self.selected_y - self.scroll < self.height - 1:
                 self.win.addstr(
                     self.selected_y - self.scroll + 1,
-                    self.get_line_size(self.selected_y, xmax=self.selected_x) + 1,
-                    self.emojie_trim(self.content[self.selected_y][self.selected_x]),
+                    self.selected_x * self.max_element_size + 1,
+                    self.token_trim(self.get_element(self.selected_x, self.selected_y)),
                     curses.color_pair(get_color(
                         focus=self.focus,
                         selected=True,
@@ -240,6 +263,8 @@ class SelectionPanel(customWindows):
         if len(self.content) - 1 < self.height - 1:
             self.win.addstr(len(self.content) + 1, 1, "End.")
 
+        self.win.addstr(3, 1, f"{self.number_of_line} {self.element_by_line}")
+
         self.win.box()
         if self.progresse_bar:
             self.win.addstr(self.height - 1, 1, f"Line {self.cursor_y + 1} out of {len(self.content)}.")
@@ -248,14 +273,21 @@ class SelectionPanel(customWindows):
 
 
 class ChoicePanel():
-    def __init__(self, h, w, y, x):
+    def set_dimension(self, h, w, y, x):
         self.win_search = SearchBar(1, w, y + 1, x + 1)
         self.win_select = SelectionPanel(h - 2, w, y + 2, x)
+
+    def __init__(self, h, w, y, x):
+        self.set_dimension(h, w, y, x)
+        self.dim = (h, w, y, x)
         self.win_search.focus = True
         self.title = ""
         self.content = []
         self.focus = False
         self.last_focus = (True, False)
+
+    def resize(h, w, y, x):
+        self.win_select.set_dimension(height=h - 2, width=w)
 
     def selected(self):
         return self.win_select.selected()

@@ -1,7 +1,11 @@
 # coding=utf-8
-import sys
-from ncurses_function import *
 from math import floor, ceil
+from ncurses_function import *
+import sys
+import os
+sys.path.append(os.path.realpath(
+    os.path.join(os.getcwd(), os.path.dirname(__file__))))
+
 try:
     import curses
 except ImportError:
@@ -50,7 +54,6 @@ def main(stdscr):
 
     EARS, EYES, MOUTH = 0, 1, 2
     for index, categorie in enumerate(("ears", "eyes", "mouth")):
-        menus[index].win_select.set_bar_lenght(taille[index] - 9)
         menus[index].set_content(emojies_element[categorie])
 
     focus_index = 0
@@ -93,6 +96,12 @@ def main(stdscr):
             menus[focus_index].last_focus = menus[old_index].last_focus
             menus[focus_index].set_focus(True)
 
+        elif k == curses.KEY_RESIZE:
+            height, width = stdscr.getmaxyx()
+            taille = [floor(width // 3), ceil(width // 3), floor(width // 3)]
+            for index in range(3):
+                menu[index].set_dimension(height - 3, taille[index], 2, sum(taille[0:index:])),
+
         else:
             for index in range(3):
                 menus[index].add_keys(k)
@@ -115,7 +124,7 @@ def main(stdscr):
         stdscr.refresh()
 
         if k in (curses.KEY_ENTER, ord("\n")):
-            pyperclip.copy(get_emojie())
+            pyperclip.copy(get_emojie(menus))
 
         k = stdscr.getch()
 

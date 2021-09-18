@@ -1,6 +1,24 @@
 # coding=utf-8
+import os
 import sys
 from ncurses_function import *
+import time
+import logging
+from logging.handlers import RotatingFileHandler
+
+logging.basicConfig(
+    format='[%(levelname)-7s][%(funcName)-14s] %(message)s',
+    handlers=[
+        RotatingFileHandler('debug.log', mode='w',
+                            backupCount=2, delay=False),
+        logging.StreamHandler()
+    ],
+    level=logging.INFO
+)
+logger = logging.getLogger('AsciiMoji')
+dirpath, filename = os.path.split(os.path.abspath(__file__))
+logger.debug('Start at : ' + str(time.asctime(time.localtime())))
+logger.debug('Dirpath: ' + str(dirpath) + ' filename ' + str(filename))
 
 try:
     import curses
@@ -56,9 +74,9 @@ def main(stdscr):
 
 
 if __name__ == "__main__":
-    try:
-        curses.wrapper(main)
-    except KeyboardInterrupt:
-        sys.exit(0)
-    except:
-        sys.exit(1)
+    # try:
+    curses.wrapper(main)
+    # except KeyboardInterrupt:
+    #     sys.exit(0)
+    # except:
+    #     sys.exit(1)
