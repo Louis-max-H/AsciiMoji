@@ -8,5 +8,5 @@ cd AsciiMoji
 python3 emojie_creator.py
 ```
 
-![Emojie creator](https://raw.githubusercontent.com/Louis-max-H/AsciiMoji/picture_emojie_creator.png "Emojie creator")
+![Emojie creator](https://raw.githubusercontent.com/Louis-max-H/AsciiMoji/main/picture_emojie_creator.png "Emojie creator")
 ![Emojie selector](https://raw.githubusercontent.com/Louis-max-H/AsciiMoji/main/picture_emojie_selector.png "Emojie selector")
